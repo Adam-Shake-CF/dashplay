@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <script src='https://cdn.firebase.com/js/client/2.2.1/firebase.js'></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+    <style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+    }
+    #display, #display iframe {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+    }
+    #display iframe {
+        border: 0;
+        margin: 0;
+    }
+    #flash {
+        position: fixed;
+        top: -110px;
+        left: 0;
+        right: 0;
+        width: 100%;
+        font-size: 3em;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: white;
+        padding: .5em 1em .5em 1em;
+        transition: top .5s;
+    }
+    #flash.open {
+        top: 0;
+    }
+    #flash.alert   {background-color: rgba(200, 0, 0, 0.9)}
+    #flash.warning {background-color: rgba(250, 150, 0, 0.9)}
+    #flash.info    {background-color: rgba(20, 20, 200, 0.9)}
+    #flash.success {background-color: rgba(0, 200, 0, 0.9)}
+    #current_url {
+        position: fixed;
+        bottom: 10px;
+        left: 10px;
+        width: 50%;
+        color: rgba(125, 125, 125, .5);
+        font-size: 2em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    #customize {
+        position: fixed;
+        bottom: 10px;
+        right: 10px;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        background-color: white;
+        border: 1px solid #bbb;
+        border-radius: 2px;
+        opacity: .8;
+    }
+    #customize:active {
+        background-color: #ccc;
+    }
+    #settings {
+        font-size: 1.2em;
+        position: fixed;
+        display: none;
+        bottom: 40px;
+        right: 40px;
+        padding: .5em;
+        background-color: rgba(255, 255, 255, 0.9);
+        border: 1px solid #bbb;
+        border-radius: 2px;
+    }
+    #settings input {
+        margin-bottom: .3em;
+        font-size: 1em;
+        padding: .2em;
+    }
+    #settings .links {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+    }
+    #flash-severity {
+        font-size: 1em;
+        padding: .3em;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+    }
+    #flash-message {
+        width: 350px;
+    }
+    #urls {
+        min-height: 10em;
+        max-height: 20em;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+    #urls .header, #urls .header a {
+        color: #888;
+    }
+    #urls .header a {
+        text-decoration: none;
+    }
+    #urls .header a:hover {
+        text-decoration: underline;
+    }
+    #urls button.remove {
+        font-weight: bold;
+        margin-left: .5em;
+        width: 2em;
+        height: 2em;
+        background-color: white;
+        border: .5px solid #bbb;
+        border-radius: 3px;
+    }
+    input.url {
+        width: 30em;
+    }
+    input.error {
+        border: 2px solid red;
+    }
+    #delay {
+        width: 2em;
+    }
+    </style>
+</head>
+<body>
+    <script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+    ga('create', 'UA-66947347-1', 'auto');
+    ga('send', 'pageview');
+    </script>
+    <div id="display"></div>
+    <div id="flash"></div>
+    <div id="current_url"></div>
+    <div id="settings">
+        <div>Delay: <input id="delay"> seconds</div>
+        <div>Flash Info:
+            <select id="flash-severity">
+                <option value="info">info</option>
+                <option value="success">success</option>
+                <option value="warning">warning</option>
+                <option value="alert">alert</option>
+            </select>
+            <input id="flash-message" placeholder="Flash info message">
+        </div>
+        <div class="links">
+            <a class="pause-link" href="">Pause</a>
+            &nbsp;&nbsp;
+            <a class="tv-link" href="#">TV mode</a>
+        </div>
+        <div id="urls"></div>
+        <input type="text" id="add" class="url" placeholder="Enter a dashboard URL">
+    </div>
+    <button id="customize">
+        <img width=20 height=20 src='/static/cog.png'>
+    </button>
+    <script>
+    var path = document.location.pathname.substr(1);
+    var tvMode = path[path.length-1] == '+' && !!(path = path.substr(0, path.length-1));
+    var pause = false;
+    var data = new Firebase('https://dashplay.firebaseio.com/urls');
+    var urls = {};
+    var urlre = /^https?:\/\/.+\..+/;
+    var delay = 10000;
+    var mergedURLs = [];
+    var currentURL = 0;
+    var next;
+
+    if (tvMode) {
+        $('#customize').hide();
+    }
+
+    // Reload the whole page every day so the browser to prevent
+    // browser from dying under memory pressure.
+    setTimeout(function() {location.reload()}, 86400000);
+
+    var keys = [];
+    for (var i = 0, pos = 0, t = path.length; pos != -1; i++) {
+        pos = path.indexOf('/', pos+1);
+        keys[i] = btoa(path.substr(0, pos >= 0 ? pos : path.length));
+    }
+    // Full path key
+    var pathKey = keys[keys.length-1];
+
+    // Listens for the path's delay setting
+    data.child(pathKey).child('delay').on("value", function(snapshot) {
+        var d = parseInt(snapshot.val());
+        if (!isNaN(d) && d > 0) {
+            delay = snapshot.val();
+            restore();
+        }
+    }, function (err) {
+        console.log("Database read failed: " + err.code);
+        restore();
+    });
+
+    // Listen for each intermediate path components URLs and flash
+    $.each(keys, function(_, key) {
+        data.child(key).child('urls').on("value", function(snapshot) {
+            var u = snapshot.val();
+            if (Object.prototype.toString.call(u) == '[object Array]') {
+                urls[key] = u;
+            } else {
+                delete urls[key];
+            }
+            restore();
+            if (!tvMode && key == pathKey && !snapshot.hasChildren()) {
+                // Show settings when current path is empty
+                $('#settings').show();
+            }
+        }, function (err) {
+            console.log("Database read failed: " + err.code);
+            restore();
+        });
+
+        data.child(key).child('flash').on("value", function(snapshot) {
+            flash = snapshot.val();
+            if (flash && flash.message) {
+                $('#flash').text(flash.message).addClass('open');
+                $('#flash').toggleClass('info', !flash.severity || flash.severity == 'info')
+                $('#flash').toggleClass('success', flash.severity == 'success')
+                $('#flash').toggleClass('warning', flash.severity == 'warning')
+                $('#flash').toggleClass('alert', flash.severity == 'alert')
+            } else {
+                $('#flash').removeClass('open');
+            }
+            if (flash) {
+                $('#flash-severity').val(flash.severity)
+                $('#flash-message').val(flash.message);
+            }
+        }, function (err) {
+            console.log("Database read failed: " + err.code);
+            restore();
+        });
+
+    });
+
+    $('#customize').on('click', function() {
+        $('#settings').toggle();
+    });
+
+    $('#urls').on('click', 'button.remove', function() {
+        var i = $(this).parent().data('i');
+        urls[pathKey].splice(i, 1);
+        save();
+    });
+
+    $('#urls').on('keyup', 'input.edit', function(e) {
+        if (e.which == 13) {
+            var i = $(this).parent().data('i');
+            var url = $(this).val();
+            if (urlre.test(url) && i >= 0) {
+                urls[pathKey][i] = url;
+                save();
+            } else {
+                $(this).addClass('error');
+            }
+        }
+    });
+
+    $('#add').on('keyup', function(e) {
+        $(this).removeClass('error');
+        if (e.which == 13) {
+            var url = $(this).val();
+            if (urlre.test(url)) {
+                if (!urls[pathKey]) {
+                    urls[pathKey] = [];
+                }
+                urls[pathKey].push(url);
+                save();
+                $(this).val('');
+            } else {
+                $(this).addClass('error');
+            }
+        }
+    });
+
+    $('#delay').on('keyup', function(e) {
+        $(this).removeClass('error');
+        if (e.which == 13) {
+            var d = $(this).val();
+            if (d == parseInt(d, 10) && d > 0) {
+                delay = d * 1000;
+                save();
+            } else {
+                $(this).addClass('error');
+            }
+        }
+    });
+
+    $('#flash-severity').on('change', function(e) {
+        data.child(pathKey).child('flash/severity').set($('option:selected', this).val());
+    });
+
+    $('#flash-message').on('keyup', function(e) {
+        if (e.which == 13) {
+            data.child(pathKey).child('flash/message').set($(this).val());
+        }
+    });
+
+    $('.tv-link').attr('href', location.href + '+');
+    $('.tv-link').on('click', function(e) {
+        window.open(this.href, location.href, 'status=0,location=1,scrollbars=0,width=1280,height=720');
+        e.preventDefault();
+    });
+
+    $('.pause-link').on('click', function(e) {
+        pause = !pause;
+
+        if (!pause) {
+            e.target.text = 'Pause';
+            loadNext();
+        } else {
+            e.target.text = 'Unpause';
+        }
+
+        e.preventDefault();
+    });
+
+    function save() {
+        $("#settings *").prop('disabled', true);
+        data.child(pathKey).child('urls').set(urls[pathKey] || []);
+        data.child(pathKey).child('delay').set(delay);
+    }
+
+    function restore() {
+        $('#urls').empty();
+        $('#delay').prop('disabled', false).val(delay / 1000);
+        $('#add').prop('disabled', false);
+        mergedURLs = []
+        $.each(keys, function(_, key) {
+            if (!urls[key]) {
+                return;
+            }
+            var path = '/' + atob(key);
+            if (key == pathKey) {
+                $('#urls').append($('<div class="header">').text(path + ':'));
+            } else {
+                $('#urls').append($('<div class="header">').append($('<a>').attr('href', path).text(path + ':')));
+            }
+            $.each(urls[key], function(i, url) {
+                if (key == pathKey) {
+                    $('#urls').append(
+                        $('<div>').data('i', i).append(
+                            $('<input type="text" class="edit url">').attr('value', url),
+                            $('<button class="remove">✕</button>')
+                        )
+                    );
+                } else {
+                    $('#urls').append(
+                        $('<div>').append(
+                            $('<input type="text" class="parent url">').prop('disabled', true).attr('value', url)
+                        )
+                    );
+                }
+                mergedURLs.push(url);
+            });
+        });
+        $('#urls').scrollTop($('#urls').prop("scrollHeight"));
+        restart();
+    }
+
+    function restart() {
+        currentURL = 0;
+        $('#display').empty();
+        loadNext();
+    }
+
+    function loadNext() {
+        clearTimeout(next);
+        if (mergedURLs.length == 0) {
+            // Nothing to show, maybe next time
+            $('#display').empty();
+            return;
+        }
+
+        if (pause) {
+            return;
+        }
+
+        var current = $('#display iframe');
+        var url = mergedURLs[currentURL++ % mergedURLs.length];
+        var iframe = $('<iframe>').attr('src', url);
+        $('#display').append(iframe);
+        if (current.length != 0) {
+            iframe.css('opacity', 0.00001); // some browsers won't layout the page if not shown
+        } else {
+            // First time display
+            $('#current_url').text(url).fadeIn(500).delay(2000).fadeOut(500);
+        }
+        next = setTimeout(function() {
+            if (current.length != 0 && mergedURLs.length > 1) {
+                // Do not show the URL for the first page (done earlier) or if we are
+                // cycling (reloading) on a single page
+                $('#current_url').hide().text(url).fadeIn(500).delay(2000).fadeOut(500);
+            }
+            iframe.animate({opacity: 1}, 500, function() {
+                current.attr('src', 'about:blank'); // Try to release memory
+                current.remove();
+                loadNext();
+            });
+        }, delay )
+    }
+    </script>
+</body>
+</html>
