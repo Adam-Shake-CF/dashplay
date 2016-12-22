@@ -322,16 +322,38 @@ var getUrlParameter = function getUrlParameter(sParam) {
 };
 
 function getAllDash() {
-  $('#existingDash').html("");
+  $('#accordion').html("");
   data2.allDocs({
     include_docs: true
   }).then(function (response) {
     console.log(response);
+
     $.each(response.rows, function(index, value) {
-      var newDiv = "<div>";
-      newDiv += "<h3>";
-      newDiv += value.doc._id;
-      newDiv += "</h3>";
+      var newDiv = "";
+      if (value.doc.flash.flashMessage && value.doc.flash.flashSeverity === "info") {
+        newDiv += '<div class="panel panel-primary">';
+      }else if (value.doc.flash.flashMessage && value.doc.flash.flashSeverity === "success") {
+        newDiv += '<div class="panel panel-success">';
+      }else if (value.doc.flash.flashMessage && value.doc.flash.flashSeverity === "warning") {
+        newDiv += '<div class="panel panel-warning">';
+      }else if (value.doc.flash.flashMessage && value.doc.flash.flashSeverity === "alert") {
+        newDiv += '<div class="panel panel-danger">';
+      }else{
+        newDiv += '<div class="panel panel-default">';
+      }
+      newDiv += '<div class="panel-heading" role="tab" id="Heading' + value.doc._id + '">';
+      newDiv += '<h4 class="panel-title">';
+      newDiv += '<a role="button" data-toggle="collapse" data-parent="#accordion" href="#' + value.doc._id + '" aria-expanded="true" aria-controls="' + value.doc._id + '">';
+      if (value.doc.flash.flashMessage) {
+        newDiv += value.doc._id + "     Flash Message:" + value.doc.flash.flashMessage;
+      }else{
+        newDiv += value.doc._id
+      }
+      newDiv += '</a>';
+      newDiv += '</h4>';
+      newDiv += '</div>';
+      newDiv += '<div id="' + value.doc._id + '" class="panel-collapse collapse" role="tabpanel" aria-labelledby="Heading' + value.doc._id + '">';
+      newDiv += '<div class="panel-body">';
       newDiv += "<p>";
       if (value.doc.flash.flashMessage) {
       newDiv += "Severity: " + value.doc.flash.flashSeverity;
@@ -339,7 +361,6 @@ function getAllDash() {
       newDiv += "<p>";
       newDiv += "Message: " + value.doc.flash.flashMessage;
       newDiv += "</p>";
-
     }else{
       newDiv += "<p>No Flash Message</p>";
     }
@@ -355,11 +376,13 @@ function getAllDash() {
       newDiv += "</p>";
     })
     newDiv += "</div>";
-    $('#existingDash').append(newDiv);
+    newDiv += "</div>";
+    newDiv += "</div>";
+    $('#accordion').append(newDiv);
     })
-    //$('#existingDash').append()
+    //$('#accordion').append(newDiv);
 
-    setTimeout(getAllDash, 5000);
+    setTimeout(getAllDash, 500000);
   }).catch(function (err) {
     console.log(err);
   });

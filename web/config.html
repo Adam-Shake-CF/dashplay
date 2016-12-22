@@ -2,10 +2,12 @@
 <html>
 <head>
     <link rel="stylesheet" type="text/css" href="../static/main.css">
+    <link rel="stylesheet" type="text/css" href="../static/bootstrap.min.css">
     <meta charset="utf-8">
     <script src='https://cdn.firebase.com/js/client/2.2.1/firebase.js'></script>
     <script type="text/javascript" src='../static/jquery-3.1.1.min.js'></script>
     <script type="text/javascript" src='../static/pouchdb-6.0.7.min.js'></script>
+    <script type="text/javascript" src='../static/bootstrap.min.js'></script>
 
 </head>
 <body>
@@ -14,10 +16,11 @@
   <input id="dashName" type="text" name="" value="">
   <button id="createNewDash" type="button" name="button">Create</button>
 </div>
-<div id="existingDash">
-  <h2>Existing Dashboards</h2>
-
+<h2>Existing Dashboards</h2>
+<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
 </div>
+
+
 <script type="text/javascript" src='../static/main.js'></script>
 </body>
 </html>
