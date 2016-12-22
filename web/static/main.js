@@ -10,8 +10,39 @@ var delay = 10000;
 var mergedURLs = [];
 var currentURL = 0;
 var next;
-setAlert();
+var removeUrl;
 
+var getUrlParameter = function getUrlParameter(sParam) {
+    var sPageURL = decodeURIComponent(window.location.search.substring(1)),
+        sURLVariables = sPageURL.split('&'),
+        sParameterName,
+        i;
+
+    for (i = 0; i < sURLVariables.length; i++) {
+        sParameterName = sURLVariables[i].split('=');
+
+        if (sParameterName[0] === sParam) {
+            return sParameterName[1] === undefined ? true : sParameterName[1];
+        }
+    }
+};
+
+
+var urlParam = getUrlParameter('dash');
+//setAlert();
+getAllDash();
+
+data2.get(urlParam).then(function (doc) {
+  urls = doc.urlList.url;
+}).catch(function (err) {
+  console.log(err);
+});
+
+$('#createNewDash').on("click", function() {
+  var dashName = $('#dashName').val();
+  createNewDashboard(dashName);
+  alert('Complete');
+})
 
 if (tvMode) {
     $('#customize').hide();
@@ -31,43 +62,25 @@ var pathKey = keys[keys.length-1];
 
 // Listens for the path's delay setting
 
-data2.get('dashConfig').then(function (doc) {
-  dashConfig = doc;
+data2.get(urlParam).then(function (doc) {
+  dashConfig = doc.dashConfig;
   delay = dashConfig.delay;
   restore();
 }).catch(function (err) {
   console.log(err);
 });
 
-
-// Listen for each intermediate path components URLs and flash
-// $.each(keys, function(_, key) {
-//     data.child(key).child('urls').on("value", function(snapshot) {
-//         var u = snapshot.val();
-//         if (Object.prototype.toString.call(u) == '[object Array]') {
-//             urls[key] = u;
-//         } else {
-//             delete urls[key];
-//         }
-//         restore();
-//         if (!tvMode && key == pathKey && !snapshot.hasChildren()) {
-//             // Show settings when current path is empty
-//             $('#settings').show();
-//         }
-//     }, function (err) {
-//         console.log("Database read failed: " + err.code);
-//         restore();
-//     });
-// });
-
 $('#customize').on('click', function() {
     $('#settings').toggle();
 });
 
 $('#urls').on('click', 'button.remove', function() {
-    var i = $(this).parent().data('i');
-    urls[pathKey].splice(i, 1);
-    save(urls, pathKey);
+    var removeUrl = $(this).parent().data('i');
+    data2.get(urlParam).then(function (urlParam) {
+      urls = urlParam.urlList.url;
+      urls.splice(removeUrl, 1)
+      saveDelete(urls, pathKey);
+    });
 });
 
 $('#urls').on('keyup', 'input.edit', function(e) {
@@ -88,12 +101,7 @@ $('#add').on('keyup', function(e) {
     if (e.which == 13) {
         var url = $(this).val();
         if (urlre.test(url)) {
-            if (!urls[pathKey]) {
-                urls[pathKey] = [];
-            }
-            urls[pathKey].push(url);
-            save();
-            $(this).val('');
+            save(url);
         } else {
             $(this).addClass('error');
         }
@@ -106,7 +114,7 @@ $('#delay').on('keyup', function(e) {
         var d = $(this).val();
         if (d == parseInt(d, 10) && d > 0) {
             delay = d * 1000;
-            save();
+            saveDelay();
         } else {
             $(this).addClass('error');
         }
@@ -114,12 +122,12 @@ $('#delay').on('keyup', function(e) {
 });
 
 $('#flash-severity').on('change', function(e) {
-    data2.get('flash').then(function (flash) {
+    data2.get(urlParam).then(function (urlParam) {
       console.log('Severity Set 1');
-      console.log(flash);
-      flash.flashSeverity = $('#flash-severity').val();
-      data2.put(flash).then(function (flash) {
-        console.log(flash);
+      console.log(urlParam);
+      urlParam.flash.flashSeverity = $('#flash-severity').val();
+      data2.put(urlParam).then(function (urlParam) {
+        console.log(urlParam);
         setAlert();
       });
     }).then(function () {
@@ -130,10 +138,10 @@ $('#flash-severity').on('change', function(e) {
 
 $('#flash-message').on('keyup', function(e) {
     if (e.which == 13) {
-        data2.get('flash').then(function (flash) {
-          flash.flashMessage = $('#flash-message').val();
-          data2.put(flash).then(function (flash) {
-            console.log(flash);
+        data2.get(urlParam).then(function (urlParam) {
+          urlParam.flash.flashMessage = $('#flash-message').val();
+          data2.put(urlParam).then(function (urlParam) {
+            console.log(urlParam);
             setAlert();
           });
         }).then(function () {
@@ -161,31 +169,47 @@ $('.pause-link').on('click', function(e) {
     e.preventDefault();
 });
 
-function save() {
-    $("#settings *").prop('disabled', true);
-    data2.get('urlList').then(function (urlList) {
-      urlList.url = urls[pathKey];
-      data2.put(urlList);
-    }).then(function () {
-    }).then(function (doc) {
-    })
-    data2.get('dashConfig').then(function (dashConfig) {
-      dashConfig.delay = delay;
-      data2.put(dashConfig);
-    }).then(function () {
-    }).then(function (doc) {
-    })
+function save(url) {
+  $("#settings *").prop('disabled', true);
+  data2.get(urlParam).then(function (urlParam) {
+    urlParam.urlList.url.push(url);
+    data2.put(urlParam).then(function (urlParam) {
+      restore();
+    });
+  })
+}
+
+function saveDelay() {
+  data2.get(urlParam).then(function (urlParam) {
+    urlParam.dashConfig.delay = delay;
+    data2.put(urlParam).then(function (urlParam) {
+      restore();
+    });
+  })
+}
+
+function saveDelete(urls) {
+  $("#settings *").prop('disabled', true);
+  data2.get(urlParam).then(function (urlParam) {
+    urlParam.urlList.url = urls;
+    data2.put(urlParam).then(function (urlParam) {
+      restore();
+    });
+  })
 }
 
 function restore() {
     setTimeout(function(){
     }, 3000);
     $('#urls').empty();
+    $('#add').val("");
     $('#delay').prop('disabled', false).val(delay / 1000);
     $('#add').prop('disabled', false);
-    mergedURLs = []
-    data2.get('urlList').then(function (doc) {
-      $.each(doc.url, function(i, url) {
+    $("#settings *").prop('disabled', false);
+    doc = {};
+    mergedURLs = [];
+    data2.get(urlParam).then(function (doc) {
+      $.each(doc.urlList.url, function(i, url) {
         $('#urls').append(
             $('<div>').data('i', i).append(
                 $('<input type="text" class="edit url">').attr('value', url),
@@ -210,10 +234,10 @@ function restart() {
 
 function setAlert() {
   console.log(flash);
-  data2.get('flash').then(function (flash) {
+  data2.get(urlParam).then(function (urlParam) {
     console.log(flash);
-    flashSeverity = flash.flashSeverity;
-    flashMessage = flash.flashMessage
+    flashSeverity = urlParam.flash.flashSeverity;
+    flashMessage = urlParam.flash.flashMessage
     if (flashSeverity && flashMessage) {
         $('#flash').text(flashMessage).addClass('open');
         $('#flash').toggleClass('info', !flashSeverity || flashSeverity == 'info')
@@ -266,4 +290,77 @@ function loadNext() {
             loadNext();
         });
     }, delay )
+}
+
+function createNewDashboard(name) {
+  data2.put({
+    "_id": name,
+    "dashConfig": { "delay": 5000 },
+     "flash": {"flashSeverity": "info", "flashMessage": "Test Test"},
+     "urlList": { "url":
+          ["url1", "url2", "url3"]}
+  }).then(function (response) {
+    data2.info();
+  }).catch(function (err) {
+    console.log(err);
+  });
+}
+
+var getUrlParameter = function getUrlParameter(sParam) {
+    var sPageURL = decodeURIComponent(window.location.search.substring(1)),
+        sURLVariables = sPageURL.split('&'),
+        sParameterName,
+        i;
+
+    for (i = 0; i < sURLVariables.length; i++) {
+        sParameterName = sURLVariables[i].split('=');
+
+        if (sParameterName[0] === sParam) {
+            return sParameterName[1] === undefined ? true : sParameterName[1];
+        }
+    }
+};
+
+function getAllDash() {
+  $('#existingDash').html("");
+  data2.allDocs({
+    include_docs: true
+  }).then(function (response) {
+    console.log(response);
+    $.each(response.rows, function(index, value) {
+      var newDiv = "<div>";
+      newDiv += "<h3>";
+      newDiv += value.doc._id;
+      newDiv += "</h3>";
+      newDiv += "<p>";
+      if (value.doc.flash.flashMessage) {
+      newDiv += "Severity: " + value.doc.flash.flashSeverity;
+      newDiv += "</p>";
+      newDiv += "<p>";
+      newDiv += "Message: " + value.doc.flash.flashMessage;
+      newDiv += "</p>";
+
+    }else{
+      newDiv += "<p>No Flash Message</p>";
+    }
+    newDiv += "<p>";
+    newDiv += "Delay: " + value.doc.dashConfig.delay / 1000 + " seconds";
+    newDiv += "</p>";
+    newDiv += "<p>";
+    newDiv += "URLs: ";
+    newDiv += "</p>";
+    $.each(value.doc.urlList.url, function(index, value) {
+      newDiv += "<p>";
+      newDiv += value;
+      newDiv += "</p>";
+    })
+    newDiv += "</div>";
+    $('#existingDash').append(newDiv);
+    })
+    //$('#existingDash').append()
+
+    setTimeout(getAllDash, 5000);
+  }).catch(function (err) {
+    console.log(err);
+  });
 }
