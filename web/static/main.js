@@ -279,10 +279,6 @@ function loadNext() {
         $('#current_url').text(url).fadeIn(500).delay(2000).fadeOut(500);
     }
     next = setTimeout(function() {
-      var updateChange = 0;
-      data2.get(urlParam).then(function (urlParam) {
-        updateChange = urlParam.updateChange;
-      }).then(function (updateChange) {
         if (current.length != 0 && mergedURLs.length > 1) {
             // Do not show the URL for the first page (done earlier) or if we are
             // cycling (reloading) on a single page
@@ -293,15 +289,6 @@ function loadNext() {
             current.remove();
             loadNext();
         });
-      });
-      if (updateChange = 1) {
-        data2.get(urlParam).then(function (urlParam) {
-          urlParam.updateChange = 0;
-          data2.put(urlParam).then(function (urlParam) {
-            restore();
-          });
-        })
-      }
     }, delay )
 }
 
