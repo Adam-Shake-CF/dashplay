@@ -28,6 +28,22 @@ var getUrlParameter = function getUrlParameter(sParam) {
 };
 
 
+var urlParam = getUrlParameter('dash');
+//setAlert();
+getAllDash();
+
+data2.get(urlParam).then(function (doc) {
+  urls = doc.urlList.url;
+}).catch(function (err) {
+  console.log(err);
+});
+
+$('#createNewDash').on("click", function() {
+  var dashName = $('#dashName').val();
+  createNewDashboard(dashName);
+  alert('Complete');
+})
+
 if (tvMode) {
     $('#customize').hide();
 }
@@ -317,3 +333,70 @@ var getUrlParameter = function getUrlParameter(sParam) {
         }
     }
 };
+
+function getAllDash() {
+  $('#accordion').html("");
+  data2.allDocs({
+    include_docs: true
+  }).then(function (response) {
+    console.log(response);
+
+    $.each(response.rows, function(index, value) {
+      var newDiv = "";
+      if (value.doc.flash.flashMessage && value.doc.flash.flashSeverity === "info") {
+        newDiv += '<div class="panel panel-primary">';
+      }else if (value.doc.flash.flashMessage && value.doc.flash.flashSeverity === "success") {
+        newDiv += '<div class="panel panel-success">';
+      }else if (value.doc.flash.flashMessage && value.doc.flash.flashSeverity === "warning") {
+        newDiv += '<div class="panel panel-warning">';
+      }else if (value.doc.flash.flashMessage && value.doc.flash.flashSeverity === "alert") {
+        newDiv += '<div class="panel panel-danger">';
+      }else{
+        newDiv += '<div class="panel panel-default">';
+      }
+      newDiv += '<div class="panel-heading" role="tab" id="Heading' + value.doc._id + '">';
+      newDiv += '<h4 class="panel-title">';
+      newDiv += '<a role="button" data-toggle="collapse" data-parent="#accordion" href="#' + value.doc._id + '" aria-expanded="true" aria-controls="' + value.doc._id + '">';
+      if (value.doc.flash.flashMessage) {
+        newDiv += value.doc._id + "     Flash Message:" + value.doc.flash.flashMessage;
+      }else{
+        newDiv += value.doc._id
+      }
+      newDiv += '</a>';
+      newDiv += '</h4>';
+      newDiv += '</div>';
+      newDiv += '<div id="' + value.doc._id + '" class="panel-collapse collapse" role="tabpanel" aria-labelledby="Heading' + value.doc._id + '">';
+      newDiv += '<div class="panel-body">';
+      newDiv += "<p>";
+      if (value.doc.flash.flashMessage) {
+      newDiv += "Severity: " + value.doc.flash.flashSeverity;
+      newDiv += "</p>";
+      newDiv += "<p>";
+      newDiv += "Message: " + value.doc.flash.flashMessage;
+      newDiv += "</p>";
+    }else{
+      newDiv += "<p>No Flash Message</p>";
+    }
+    newDiv += "<p>";
+    newDiv += "Delay: " + value.doc.dashConfig.delay / 1000 + " seconds";
+    newDiv += "</p>";
+    newDiv += "<p>";
+    newDiv += "URLs: ";
+    newDiv += "</p>";
+    $.each(value.doc.urlList.url, function(index, value) {
+      newDiv += "<p>";
+      newDiv += value;
+      newDiv += "</p>";
+    })
+    newDiv += "</div>";
+    newDiv += "</div>";
+    newDiv += "</div>";
+    $('#accordion').append(newDiv);
+    })
+    //$('#accordion').append(newDiv);
+
+    setTimeout(getAllDash, 500000);
+  }).catch(function (err) {
+    console.log(err);
+  });
+}
